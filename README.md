@@ -15,7 +15,7 @@ Hands-on Splunk administration practice using a Dockerized Splunk instance and a
 docker run -d -p 8000:8000 -p 8088:8088 -p 8089:8089 -p 9997:9997 \
   -e SPLUNK_START_ARGS=--accept-license \
   -e SPLUNK_GENERAL_TERMS=--accept-sgt-current-at-splunk-com \
-  -e SPLUNK_PASSWORD='pass' \
+  -e SPLUNK_PASSWORD='YourPasswordHere123!' \
   --name splunk \
   splunk/splunk:latest
 ```
