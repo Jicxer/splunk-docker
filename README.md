@@ -7,7 +7,20 @@ Hands-on Splunk administration practice using a Dockerized Splunk instance and a
 ### Requirements
 - Docker installed on the host (or on Kali directly)
 - ~4GB RAM free for the Splunk container
-- A Kali VM able to reach the Docker host over the network
+- `rsyslog` installed and running on Kali (many current Kali installs log only to the systemd journal by default; `/var/log/auth.log` will not exist as a real file without it)
+
+Check and install if needed:
+```bash
+dpkg -l | grep rsyslog
+sudo apt update
+sudo apt install rsyslog -y
+sudo systemctl enable rsyslog --now
+```
+
+Confirm the file exists before continuing — this matters for the forwarder mount step later:
+```bash
+ls -l /var/log/auth.log
+```
 
 ### Run Splunk
 
@@ -15,7 +28,7 @@ Hands-on Splunk administration practice using a Dockerized Splunk instance and a
 docker run -d -p 8000:8000 -p 8088:8088 -p 8089:8089 -p 9997:9997 \
   -e SPLUNK_START_ARGS=--accept-license \
   -e SPLUNK_GENERAL_TERMS=--accept-sgt-current-at-splunk-com \
-  -e SPLUNK_PASSWORD='YourPasswordHere123!' \
+  -e SPLUNK_PASSWORD='SplunkLab2026x' \
   --name splunk \
   splunk/splunk:latest
 ```
@@ -33,25 +46,49 @@ Watch startup logs until initialization finishes:
 docker logs -f splunk
 ```
 
-Log in at `http://<docker-host-ip>:8000` with `admin` and the password set above.
+Wait for the line indicating the startup playbook has completed before continuing. Log in at `http://localhost:8000` with `admin` and the password set above.
 
-### Install the Universal Forwarder on Kali
+### Run the Universal Forwarder (Docker)
+
+Splunk publishes an official Universal Forwarder image, so no separate package download or account is required.
+
+Create a shared network so the forwarder can reach the Splunk container by name:
 
 ```bash
-sudo dpkg -i splunkforwarder-*.deb
-sudo /opt/splunkforwarder/bin/splunk start --accept-license
-sudo /opt/splunkforwarder/bin/splunk add forward-server <splunk-container-ip>:9997
+docker network create splunklab
+docker network connect splunklab splunk
+```
+
+Start the forwarder, mounting Kali's real log file into the container read-only so it has something to watch:
+
+```bash
+docker run -d -p 9997:9997 \
+  -v /var/log/auth.log:/var/log/auth.log:ro \
+  -e SPLUNK_START_ARGS=--accept-license \
+  -e SPLUNK_GENERAL_TERMS=--accept-sgt-current-at-splunk-com \
+  -e SPLUNK_PASSWORD='UfPassword2026x' \
+  --name uf \
+  --network splunklab \
+  splunk/universalforwarder:latest
+```
+
+Point the forwarder at the Splunk container by name:
+
+```bash
+docker exec -it uf /opt/splunkforwarder/bin/splunk add forward-server splunk:9997 -auth admin:UfPassword2026x
 ```
 
 Enable receiving on the Splunk side under Settings > Forwarding and receiving.
 
+Note: the Universal Forwarder has no web interface. That's expected — it is a shipping agent only, not a search or admin console.
+
 ## Exercises
 
 ### 1. Forward a real log source
-Point the Universal Forwarder at `/var/log/auth.log` on Kali and confirm events land in Splunk's default index.
+Add a monitor input inside the forwarder container for the mounted `/var/log/auth.log` and confirm events land in Splunk's default index.
 
 ### 2. Build a dedicated index
-Create a `kali_logs` index instead of using `main`. Update the forwarder's `inputs.conf` to route into it with an appropriate sourcetype. Document the retention and sizing choices.
+Create a `kali_logs` index instead of using `main`. Update the forwarder's `inputs.conf` (inside the `uf` container, under `/opt/splunkforwarder/etc/system/local/`) to route into it with an appropriate sourcetype. Document the retention and sizing choices.
 
 ### 3. Generate real traffic to detect
 Run a controlled brute-force attempt against a local test SSH service (own VM only) to produce authentic failed-login events rather than synthetic test data.
