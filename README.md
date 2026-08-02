@@ -1,6 +1,6 @@
 # Splunk Study Lab
 
-Hands-on Splunk admin practice using a Dockerized Splunk instance and a Kali VM as a log source. Built while prepping for a network security operations role that's focused on SIEM administration, not SOC analyst work.
+Hands-on Splunk admin practice using a Dockerized Splunk instance and a Kali VM as a log source. Built while prepping for a network security operations role that's focused on SIEM administration.
 
 ## Environment Setup
 
